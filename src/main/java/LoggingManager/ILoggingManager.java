@@ -13,7 +13,7 @@ public interface ILoggingManager {
     @return true:  dumping in the database is successful
             false: unsuccessful
      */
-    public boolean writeLog(ArrayList<Log> logs);
+    public boolean writeLog(Log log);
 
     /*
     Flushes log which is there in the buffer to the database

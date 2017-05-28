@@ -8,11 +8,11 @@ import org.json.JSONArray;
 public interface IDataManager {
     /*
     write logs given in the buffer to the database.
-    @param: Array list of logs
+    @param: Array list of logsw
     @return true:  dumping in the database is successful
             false: unsuccessful
      */
-    public boolean writeData(JSONArray data);
+    public boolean writeData(String data);
 
     /*
     Flushes log which is there in the buffer to the database
@@ -20,5 +20,5 @@ public interface IDataManager {
     @return true: success
             false: failure
      */
-    public boolean flushData(JSONArray data);
+    public boolean flushData(String data);
 }

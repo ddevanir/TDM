@@ -7,6 +7,9 @@ public interface ITxnManager {
     /* @return unique transaction id*/
     public String begin();
 
+    /*write the data and log in the buffer*/
+    public void writeLogData(String transID, String payload);
+
     /* Completion of commit */
     public void commit(String txnID);
 

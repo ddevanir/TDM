@@ -1,5 +1,7 @@
 package LoggingManager;
 
+import org.json.JSONObject;
+
 import java.sql.Timestamp;
 
 /**
@@ -11,19 +13,50 @@ public class Log {
     private Integer prevLSN;
     private Integer nextLSN;
     private String payload;
-    private enum logType {
+    public enum logType {
         BEGIN,
         COMMIT,
         ABORT,
         RECORD
     }
+
     private logType type;
     private Timestamp timestamp;
 
-    public Log(String TID, logType type,String payload) {
+    public Log(String TID, logType type, String payload) {
         this.TID = TID;
         this.type = type;
-        this.payload = payload;
         timestamp = new Timestamp(System.currentTimeMillis());
+
+        JSONObject obj = new JSONObject(payload);
+        obj.put("TID",this.TID);
+        this.payload = obj.toString();
+    }
+
+    public Log(String TID, logType type) {
+        this.TID = TID;
+        this.type = type;
+    }
+
+    public String getPayLoad() {
+        return this.payload;
+    }
+
+    public Log.logType getType() {
+        return type;
+    }
+
+    public JSONObject getJSON() {
+        JSONObject json = new JSONObject();
+        json.put("TID", this.TID);
+        json.put("LSN", this.LSN);
+        json.put("PrevLSN", this.prevLSN);
+        json.put("NextLSN", this.nextLSN);
+        json.put("type", this.type);
+        json.put("timestamp", this.timestamp);
+        if(this.type == logType.RECORD) {
+            json.put("payload", new JSONObject(payload));
+        }
+        return json;
     }
 }
