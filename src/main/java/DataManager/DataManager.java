@@ -14,7 +14,7 @@ public class DataManager implements IDataManager {
         mongoDB = new MongoDB();
     }
 
-    public boolean writeData(String data) {
+    public boolean writeData(JSONObject data) {
         JSONObject json = new JSONObject(data);
         if(mongoDB.insertData(json) == true) {
             System.out.println("Insertion to DB success");
@@ -23,11 +23,77 @@ public class DataManager implements IDataManager {
         return false;
     }
 
+    public boolean writeNewData(Data data) {
+        JSONObject json = data.getJSON();
+        if(mongoDB.insertData(json) == true) {
+            System.out.println("Insertion to DB Data is successfull");
+            return true;
+        }
+        return false;
+    }
+
+    public boolean addNewData(String policyID) {
+        if(mongoDB.addNewData(policyID) == true) {
+            System.out.println("Insertion to DB Data is successfull");
+            return true;
+        }
+        return false;
+    }
+
+    public boolean updateData(Data data) {
+        JSONObject json = data.getJSON();
+        if(mongoDB.updateData(json) == true) {
+            System.out.println("Update to the Data DB is successfull");
+            return true;
+        }
+        return false;
+    }
+
+    public boolean updateData(String payload) {
+        if(mongoDB.updateData(new JSONObject(payload)) == true) {
+            System.out.println("Update to the Data DB is successfull");
+            return true;
+        }
+        return false;
+    }
+
+    public boolean flushData(JSONObject data) {
+        return false;
+    }
+
     public void abort(String txnID) {
         mongoDB.removeData(txnID);
     }
 
-    public boolean flushData(String data) {
-        return false;
+    public Data createDataRecord(JSONObject payload, Data.dataType type) {
+        Data data = new Data(payload, Data.dataType.PENDING);
+        return data;
+    }
+
+    public boolean PolicyIDPresent(Data data) {
+        JSONObject payload = data.getPayLoad();
+        String policyID = (String) payload.get("id");
+        if(mongoDB.isPolicyID(policyID) == true) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    public boolean isPolicyID(String policyID) {
+        if(mongoDB.isPolicyID(policyID) == true) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    public static String getPolicyID(JSONObject payload ) {
+        String policyID = (String) payload.get("policyID");
+        return policyID;
+    }
+
+    public void deletePolicy(String policyID){
+        mongoDB.deletePolicy(policyID);
     }
 }

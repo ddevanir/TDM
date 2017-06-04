@@ -1,5 +1,7 @@
 package LoggingManager;
 
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 
 /**
@@ -22,4 +24,9 @@ public interface ILoggingManager {
             false: failure
      */
     public boolean flushLog(ArrayList<Log> logs);
+
+    /* Creates log object with given parameters
+    */
+    public Log createLogRecord(String txnID, Log.logType type, JSONObject payload);
+
 }
