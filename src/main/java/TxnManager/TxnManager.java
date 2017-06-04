@@ -1,10 +1,9 @@
 package TxnManager;
 
+import DataManager.Data;
 import DataManager.DataManager;
 import LoggingManager.Log;
-import DataManager.Data;
 import LoggingManager.LoggingManager;
-import com.mongodb.BasicDBObject;
 import org.json.JSONObject;
 
 import java.sql.Timestamp;
@@ -214,7 +213,7 @@ public class TxnManager implements ITxnManager{
             }
         }
 
-        for(int j = i ; j < records.size() ; j++){
+        for(int j = records.size() - 1 ; j >=i  ; j--){
             JSONObject rec = records.get(j);
             if(rec.has("prevPayload")){
                 String payload = rec.getString("prevPayload");
