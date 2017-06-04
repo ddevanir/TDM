@@ -2,8 +2,10 @@ package LoggingManager;
 
 import TxnManager.TxnManager;
 import org.json.JSONObject;
+import org.omg.CosNaming.NamingContextExtPackage.StringNameHelper;
 
 import java.sql.Timestamp;
+import java.util.Date;
 
 /**
  * Created by beep on 5/21/17.
@@ -15,20 +17,23 @@ public class Log {
     private Integer nextLSN;
     private JSONObject payload;
     private JSONObject prevPayload;
+    private boolean timeTraversed;
     public enum logType {
         BEGIN,
         COMMIT,
         ABORT,
-        RECORD
+        RECORD,
+        INVALID
     }
 
     private logType type;
-    private Timestamp timestamp;
+    private long timestamp;
 
     public Log(String TID, logType type, JSONObject payload) {
         this.TID = TID;
         this.type = type;
-        timestamp = new Timestamp(System.currentTimeMillis());
+        //timestamp = new Timestamp(System.currentTimeMillis());
+        timestamp = System.currentTimeMillis();
         this.LSN = TxnManager.globalLSNCounter;
         this.prevLSN = this.LSN - 1;
         this.nextLSN = this.LSN + 1;
@@ -42,6 +47,7 @@ public class Log {
 //        JSONObject obj = new JSONObject(payload);
 //        obj.put("TID",this.TID);
         this.payload = payload;
+        this.timeTraversed = false;
     }
 
     public Log(String TID, logType type) {
@@ -77,10 +83,29 @@ public class Log {
         if(this.type == logType.RECORD) {
             json.put("payload", payload);
         }
+        json.put("timeTraversed", this.timeTraversed);
         return json;
     }
 
     public void addPrevPayload(JSONObject prevPayload) {
         this.prevPayload = prevPayload;
+    }
+
+    public static Log.logType getTypeFromString (String sType){
+        Log.logType ret = logType.INVALID;
+        if(sType.equals("BEGIN")){
+            ret =  logType.BEGIN;
+        }
+        if(sType.equals("RECORD")){
+            ret =  logType.RECORD;
+        }
+        if(sType.equals("ABORT")){
+            ret = logType.ABORT;
+        }
+        if(sType.equals("COMMIT")){
+            ret =  logType.COMMIT;
+        }
+        return ret;
+
     }
 }

@@ -102,7 +102,12 @@ public class LoggingManager implements ILoggingManager{
         mongoDB.updateDocTimeTraversal(timestamp);
     }
 
-    public List<JSONObject> getTimeTraversalRecords(Timestamp ts){
+    public List<JSONObject> getTimeTraversalRecords(long ts)
+    {
         return mongoDB.getTimeTraversalRecords(ts);
+    }
+
+    public void markAsTimeTraversed(ArrayList<Integer> lsnList){
+         mongoDB.markAsTimeTraversed(lsnList);
     }
 }

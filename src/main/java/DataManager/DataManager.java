@@ -23,22 +23,22 @@ public class DataManager implements IDataManager {
         return false;
     }
 
-    public boolean writeNewData(Data data) {
-        JSONObject json = data.getJSON();
-        if(mongoDB.insertData(json) == true) {
-            System.out.println("Insertion to DB Data is successfull");
-            return true;
-        }
-        return false;
-    }
-
-    public boolean addNewData(String policyID) {
-        if(mongoDB.addNewData(policyID) == true) {
-            System.out.println("Insertion to DB Data is successfull");
-            return true;
-        }
-        return false;
-    }
+//    public boolean writeNewData(Data data) {
+//        JSONObject json = data.getJSON();
+//        if(mongoDB.insertData(json) == true) {
+//            System.out.println("Insertion to DB Data is successfull");
+//            return true;
+//        }
+//        return false;
+//    }
+//
+//    public boolean addNewData(String policyID) {
+//        if(mongoDB.addNewData(policyID) == true) {
+//            System.out.println("Insertion to DB Data is successfull");
+//            return true;
+//        }
+//        return false;
+//    }
 
     public boolean updateData(Data data) {
         JSONObject json = data.getJSON();
@@ -61,32 +61,29 @@ public class DataManager implements IDataManager {
         return false;
     }
 
-    public void abort(String txnID) {
-        mongoDB.removeData(txnID);
-    }
 
     public Data createDataRecord(JSONObject payload, Data.dataType type) {
         Data data = new Data(payload, Data.dataType.PENDING);
         return data;
     }
 
-    public boolean PolicyIDPresent(Data data) {
-        JSONObject payload = data.getPayLoad();
-        String policyID = (String) payload.get("id");
-        if(mongoDB.isPolicyID(policyID) == true) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    public boolean isPolicyID(String policyID) {
-        if(mongoDB.isPolicyID(policyID) == true) {
-            return true;
-        } else {
-            return false;
-        }
-    }
+//    public boolean PolicyIDPresent(Data data) {
+//        JSONObject payload = data.getPayLoad();
+//        String policyID = (String) payload.get("id");
+//        if(mongoDB.isPolicyID(policyID) == true) {
+//            return true;
+//        } else {
+//            return false;
+//        }
+//    }
+//
+//    public boolean isPolicyID(String policyID) {
+//        if(mongoDB.isPolicyID(policyID) == true) {
+//            return true;
+//        } else {
+//            return false;
+//        }
+//    }
 
     public static String getPolicyID(JSONObject payload ) {
         String policyID = (String) payload.get("policyID");

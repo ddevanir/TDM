@@ -9,6 +9,7 @@ import org.json.JSONObject;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.List;
 
 import static com.mongodb.client.model.Aggregates.count;
@@ -50,6 +51,12 @@ public class MongoDB {
 
         collFirstLsn = dbLog.getCollection("FirstLsnTransactions");
         System.out.println("Collection First LSN transactions created successfully");
+
+    }
+
+    public void dropAllDB(){
+        dbLog.dropDatabase();
+        dbData.dropDatabase();
 
     }
 
@@ -270,12 +277,19 @@ public class MongoDB {
         }
     }
 
-    public List<JSONObject> getTimeTraversalRecords(Timestamp ts){
+    public List<JSONObject> getTimeTraversalRecords(long ts){
         BasicDBObject query = new BasicDBObject("timestamp", new BasicDBObject("$gt", ts));
+        query.append("timeTraversed", false);
+        //DBObject query = QueryBuilder.start().put("timestamp").greaterThan(1).get();
         DBCursor cursor = collLog.find(query);
+//        BasicDBObject query = new BasicDBObject();
+//        BasicDBObject field = new BasicDBObject();
+//        field.put("timestamp", new BasicDBObject("$gt", ts));
+//        DBCursor cursor = collLog.find(query,field);
+
         List<JSONObject> ret = new ArrayList<JSONObject>();
         while (cursor.hasNext()) {
-            JSONObject json = new JSONObject(cursor.curr().toString());
+            JSONObject json = new JSONObject(cursor.next().toString());
             ret.add(json);
         }
         return ret;
@@ -285,5 +299,14 @@ public class MongoDB {
         BasicDBObject query = new BasicDBObject();
         query.put("policyID", policyID);
         collData.remove(query);
+    }
+
+    public void markAsTimeTraversed(ArrayList<Integer> lsnList){
+        for(Integer lsn : lsnList){
+            BasicDBObject set = new BasicDBObject("$set", new BasicDBObject("timeTraversed", true));
+            BasicDBObject query = new BasicDBObject();
+            query.put("LSN", lsn);
+            collLog.update(query, set);
+        }
     }
 }

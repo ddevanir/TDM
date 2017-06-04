@@ -24,5 +24,5 @@ public interface ITxnManager {
     public void flush();
 
     /*Traverse to timestamp T */
-    public void timeTraversal(Timestamp timestamp);
+    public void timeTraversal(long timestamp);
 }

@@ -8,16 +8,23 @@ import org.json.JSONObject;
 
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Created by beep on 5/26/17.
  */
 public class TxnManager implements ITxnManager{
     public static ArrayList<Log> bufferLog = new ArrayList<Log>(); //infinite Log Buffer
-    private static ArrayList<Data> bufferData = new ArrayList<Data>(); //infinite Data Buffer
+    public static ReentrantLock logBufferLock = new ReentrantLock();
+    public static ArrayList<Data> bufferData = new ArrayList<Data>(); //infinite Data Buffer
+    public static ReentrantLock dataBufferLock = new ReentrantLock();
+
     private LoggingManager loggingManager ;
     private DataManager dataManager;
+    private FlushMonitor flushMonitor;
+    private Thread flushMonitorThread;
     public static int globalLSNCounter = 0;
+    private Boolean bFlushOnCommit = false;
     public static Map<String, ArrayList<Integer>> policyLsnMap = new HashMap<String, ArrayList<Integer>>();
     //private final int BUFFER_LIMIT = 5;
 
@@ -26,9 +33,19 @@ public class TxnManager implements ITxnManager{
     * REDO is only required
     * */
 
-    public TxnManager() {
+    public TxnManager(int flushtime) {
         loggingManager = new LoggingManager();
         dataManager = new DataManager();
+        recovery();
+        if (flushtime > 0){
+            bFlushOnCommit = false;
+            flushMonitor = new FlushMonitor(flushtime, loggingManager, dataManager);
+            flushMonitorThread = new Thread(flushMonitor);
+            flushMonitorThread.start();
+        }
+        else if ( flushtime == 0) {
+            bFlushOnCommit = true;
+        }
     }
 
     public void recovery() {
@@ -71,15 +88,18 @@ public class TxnManager implements ITxnManager{
     }
 
     public String begin() {
+        TxnManager.AcquireLocks();
         String txnID = UUID.randomUUID().toString();
         globalLSNCounter++;
         Log log = loggingManager.createLogRecord(txnID, Log.logType.BEGIN, null);
         bufferLog.add(log);
         loggingManager.insertPendingTransaction(txnID);
+        TxnManager.ReleaseLocks();
         return txnID;
     }
 
     public void writePolicy(String txnID, JSONObject payload) {
+        TxnManager.AcquireLocks();
         globalLSNCounter++;
         Log log = loggingManager.createLogRecord(txnID, Log.logType.RECORD, payload);
         bufferLog.add(log);
@@ -88,6 +108,7 @@ public class TxnManager implements ITxnManager{
         bufferData.add(data);
 
         InsertpolicyLsnMap(DataManager.getPolicyID(payload),log.getLSN());
+        TxnManager.ReleaseLocks();
     }
 
 
@@ -103,15 +124,15 @@ public class TxnManager implements ITxnManager{
         }
     }
 
-    private void flushData() {
-        for(Log buffer : bufferLog) {
-            loggingManager.writeLog(buffer);
-            if(buffer.getType() == Log.logType.RECORD) {
-                dataManager.writeData(buffer.getPayLoad());
-            }
-        }
-        bufferLog.clear();
-    }
+//    private void flushData() {
+//        for(Log buffer : bufferLog) {
+//            loggingManager.writeLog(buffer);
+//            if(buffer.getType() == Log.logType.RECORD) {
+//                dataManager.writeData(buffer.getPayLoad());
+//            }
+//        }
+//        bufferLog.clear();
+//    }
 
     private void flushLogBuffer() {
         for(Log buffer : bufferLog) {
@@ -121,6 +142,7 @@ public class TxnManager implements ITxnManager{
     }
 
     public void commit(String txnID) {
+        TxnManager.AcquireLocks();
         globalLSNCounter++;
         Log log = loggingManager.createLogRecord(txnID, Log.logType.COMMIT, null);
         bufferLog.add(log);
@@ -132,7 +154,10 @@ public class TxnManager implements ITxnManager{
 
         changeDataType(Data.dataType.COMMITTED);
         loggingManager.removePendingTid(txnID);
-
+        TxnManager.ReleaseLocks();
+        if(bFlushOnCommit) {
+            flush();
+        }
     }
 
     private void changeDataType(Data.dataType type) {
@@ -164,15 +189,23 @@ public class TxnManager implements ITxnManager{
     }
 
     public void abort(String txnID) {
+        TxnManager.AcquireLocks();
         globalLSNCounter++;
         Log log = loggingManager.createLogRecord(txnID, Log.logType.ABORT, null);
         bufferLog.add(log);
         flushLogBuffer();
         changeDataType(Data.dataType.ABORTED);
         deleteAbortedDataType(Data.dataType.ABORTED);
+        loggingManager.removePendingTid(txnID);
+        TxnManager.ReleaseLocks();
+        if(bFlushOnCommit) {
+            flush();
+        }
     }
 
     public void flush() {
+        TxnManager.AcquireLocks();
+        ArrayList<Data> markDelete = new ArrayList<Data>();
         for(Data data : bufferData) {
             if(data.getType() == Data.dataType.COMMITTED) {
                 //writePolicy(data);
@@ -181,11 +214,16 @@ public class TxnManager implements ITxnManager{
                 JSONObject payload = data.getPayLoad();
                 String policyID = DataManager.getPolicyID(payload);
                 TxnManager.policyLsnMap.remove(policyID);
+                markDelete.add(data);
             } else {
                 continue;
             }
         }
-        bufferData.clear();
+        for (Data data : markDelete ){
+            bufferData.remove(data);
+        }
+        //bufferData.clear();
+        TxnManager.ReleaseLocks();
     }
 
 //    private void writePolicy(Data data) {
@@ -199,15 +237,17 @@ public class TxnManager implements ITxnManager{
 //        }
 //    }
 
-    public void timeTraversal(Timestamp ts) {
+    public void timeTraversal(long ts) {
+        TxnManager.AcquireLocks();
         List<JSONObject> records = loggingManager.getTimeTraversalRecords(ts);
-        Boolean bInclude = true;
-        List<JSONObject> validRecords = new ArrayList<JSONObject>();
-        List<JSONObject> tempRecords = new ArrayList<JSONObject>();
+        ArrayList<Integer> lsnList = new ArrayList<Integer>();
+//        Boolean bInclude = true;
+//        List<JSONObject> validRecords = new ArrayList<JSONObject>();
+//        List<JSONObject> tempRecords = new ArrayList<JSONObject>();
         int i = 0;
         for(JSONObject rec : records) {
             i = i+1;
-            Log.logType type = (Log.logType)rec.get("type");
+            Log.logType type = Log.getTypeFromString((String) rec.get("type"));
             if(type == Log.logType.BEGIN){
                 break;
             }
@@ -215,15 +255,32 @@ public class TxnManager implements ITxnManager{
 
         for(int j = records.size() - 1 ; j >=i  ; j--){
             JSONObject rec = records.get(j);
+            lsnList.add(rec.getInt("LSN"));
+            Log.logType type = Log.getTypeFromString((String) rec.get("type"));
+            if(type != Log.logType.RECORD){
+                continue;
+            }
             if(rec.has("prevPayload")){
-                String payload = rec.getString("prevPayload");
-                dataManager.updateData(payload);
+                JSONObject payload = rec.getJSONObject("prevPayload");
+                dataManager.updateData(payload.toString());
             }
             else{
-                String payload = rec.getString("payload");
-                String policyID = DataManager.getPolicyID(new JSONObject(payload));
+                JSONObject payload = rec.getJSONObject("payload");
+                String policyID = DataManager.getPolicyID((payload));
                 dataManager.deletePolicy(policyID);
             }
         }
+        loggingManager.markAsTimeTraversed(lsnList);
+        TxnManager.ReleaseLocks();
+    }
+
+    public static void AcquireLocks(){
+        TxnManager.logBufferLock.lock();
+        TxnManager.dataBufferLock.lock();
+    }
+
+    public static void ReleaseLocks(){
+        TxnManager.logBufferLock.unlock();
+        TxnManager.dataBufferLock.unlock();
     }
 }
