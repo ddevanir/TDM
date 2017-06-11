@@ -3,6 +3,7 @@ package TxnManager;
 import org.json.JSONObject;
 
 import java.sql.Timestamp;
+import java.text.ParseException;
 
 /**
  * Created by beep on 5/21/17.
@@ -24,5 +25,10 @@ public interface ITxnManager {
     public void flush();
 
     /*Traverse to timestamp T */
-    public void timeTraversal(long timestamp);
+    public void timeTraversal(String timestamp) throws ParseException;
+
+    /*Traverse to timestamp T */
+    public void viewHistory(String timestamp) throws ParseException;
+
+
 }

@@ -21,10 +21,12 @@ public class MongoDB {
     private MongoClient mongoClient;
     private DBCollection collLog;
     private DBCollection collData;
+    private DBCollection collOldData;
     private DBCollection collPendingTransactions;
     private DBCollection collFirstLsn;
     private DB dbLog;
     private DB dbData;
+    private DB dbOldData;
 
     public MongoDB() {
         // To connect to mongodb server
@@ -52,11 +54,17 @@ public class MongoDB {
         collFirstLsn = dbLog.getCollection("FirstLsnTransactions");
         System.out.println("Collection First LSN transactions created successfully");
 
+        collOldData = dbData.getCollection("OldDataCollection");
+
     }
 
     public void dropAllDB(){
         dbLog.dropDatabase();
         dbData.dropDatabase();
+
+    }
+    public void dropOldPolicyCollection(){
+        collOldData.drop();
 
     }
 
@@ -72,10 +80,11 @@ public class MongoDB {
         return true;
     }
 
-    public boolean addNewData(String policyID) {
-        JSONObject payload = getPayload(policyID);
-        DBObject dbObject = (DBObject) JSON.parse(payload.toString());
-        collData.insert(dbObject);
+    public boolean addNewData(List<JSONObject> jsonList) {
+        for (JSONObject rec : jsonList) {
+            DBObject dbObject = (DBObject) JSON.parse(rec.toString());
+            collOldData.insert(dbObject);
+        }
         return true;
     }
 
@@ -85,6 +94,15 @@ public class MongoDB {
         BasicDBObject searchQuery = new BasicDBObject().append("policyID", policyID);
 
         collData.update(searchQuery, dbObject, true,false);
+        return true;
+    }
+
+    public boolean updateNewData(JSONObject payload ) {
+        DBObject dbObject = (DBObject) JSON.parse(payload.toString());
+        String policyID = DataManager.getPolicyID(payload);
+        BasicDBObject searchQuery = new BasicDBObject().append("policyID", policyID);
+
+        collOldData.update(searchQuery, dbObject, true,false);
         return true;
     }
 //
@@ -280,13 +298,7 @@ public class MongoDB {
     public List<JSONObject> getTimeTraversalRecords(long ts){
         BasicDBObject query = new BasicDBObject("timestamp", new BasicDBObject("$gt", ts));
         query.append("timeTraversed", false);
-        //DBObject query = QueryBuilder.start().put("timestamp").greaterThan(1).get();
         DBCursor cursor = collLog.find(query);
-//        BasicDBObject query = new BasicDBObject();
-//        BasicDBObject field = new BasicDBObject();
-//        field.put("timestamp", new BasicDBObject("$gt", ts));
-//        DBCursor cursor = collLog.find(query,field);
-
         List<JSONObject> ret = new ArrayList<JSONObject>();
         while (cursor.hasNext()) {
             JSONObject json = new JSONObject(cursor.next().toString());
@@ -295,15 +307,54 @@ public class MongoDB {
         return ret;
     }
 
+    public List<JSONObject> getFutureTimeTraversalRecords(long ts){
+        BasicDBObject query = new BasicDBObject("timestamp", new BasicDBObject("$lt", ts));
+        query.append("timeTraversed", true);
+        DBCursor cursor = collLog.find(query);
+        List<JSONObject> ret = new ArrayList<JSONObject>();
+        while (cursor.hasNext()) {
+            JSONObject json = new JSONObject(cursor.next().toString());
+            ret.add(json);
+        }
+        return ret;
+    }
+
+    public List<JSONObject> geDataRecords(long ts){
+        BasicDBObject query = new BasicDBObject("lastUpdateTs", new BasicDBObject("$lt", ts));
+        DBCursor cursor = collData.find(query);
+        List<JSONObject> ret = new ArrayList<JSONObject>();
+        while (cursor.hasNext()) {
+            JSONObject json = new JSONObject(cursor.next().toString());
+            ret.add(json);
+        }
+        return ret;
+    }
+
+
     public void deletePolicy(String policyID){
         BasicDBObject query = new BasicDBObject();
         query.put("policyID", policyID);
         collData.remove(query);
     }
 
+    public void deletePolicyfromOld(String policyID){
+        BasicDBObject query = new BasicDBObject();
+        query.put("policyID", policyID);
+        collOldData.remove(query);
+    }
+
     public void markAsTimeTraversed(ArrayList<Integer> lsnList){
         for(Integer lsn : lsnList){
             BasicDBObject set = new BasicDBObject("$set", new BasicDBObject("timeTraversed", true));
+            BasicDBObject query = new BasicDBObject();
+            query.put("LSN", lsn);
+            collLog.update(query, set);
+        }
+    }
+
+    public void markAsNotTimeTraversed(ArrayList<Integer> lsnList){
+        for(Integer lsn : lsnList){
+            BasicDBObject set = new BasicDBObject("$set", new BasicDBObject("timeTraversed", false));
             BasicDBObject query = new BasicDBObject();
             query.put("LSN", lsn);
             collLog.update(query, set);

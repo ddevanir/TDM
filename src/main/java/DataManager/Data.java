@@ -22,8 +22,9 @@ public class Data {
     private dataType type;
 
     public Data(JSONObject payload, dataType type) {
-        this.payload = payload;
         this.type = type;
+        payload.put("lastUpdateTs",System.currentTimeMillis());
+        this.payload = payload;
     }
 
     public Data.dataType getType() {

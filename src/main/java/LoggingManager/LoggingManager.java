@@ -107,7 +107,15 @@ public class LoggingManager implements ILoggingManager{
         return mongoDB.getTimeTraversalRecords(ts);
     }
 
+    public List<JSONObject> getFutureTimeTraversalRecords(long ts)
+    {
+        return mongoDB.getFutureTimeTraversalRecords(ts);
+    }
+
     public void markAsTimeTraversed(ArrayList<Integer> lsnList){
          mongoDB.markAsTimeTraversed(lsnList);
+    }
+    public void markAsNotTimeTraversed(ArrayList<Integer> lsnList){
+        mongoDB.markAsNotTimeTraversed(lsnList);
     }
 }

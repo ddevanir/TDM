@@ -7,13 +7,16 @@ import LoggingManager.LoggingManager;
 import org.json.JSONObject;
 
 import java.sql.Timestamp;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Created by beep on 5/26/17.
  */
-public class TxnManager implements ITxnManager{
+ public class TxnManager implements ITxnManager{
     public static ArrayList<Log> bufferLog = new ArrayList<Log>(); //infinite Log Buffer
     public static ReentrantLock logBufferLock = new ReentrantLock();
     public static ArrayList<Data> bufferData = new ArrayList<Data>(); //infinite Data Buffer
@@ -32,7 +35,7 @@ public class TxnManager implements ITxnManager{
     * UNDO not required
     * REDO is only required
     * */
-
+    // flustime in secs
     public TxnManager(int flushtime) {
         loggingManager = new LoggingManager();
         dataManager = new DataManager();
@@ -188,6 +191,15 @@ public class TxnManager implements ITxnManager{
         }
     }
 
+    private long getEpoch(String date) throws ParseException {
+        DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+        Date dateEpoch = dateFormat.parse(date);
+        long epoch = dateEpoch.getTime();
+        return epoch;
+    }
+
+
+
     public void abort(String txnID) {
         TxnManager.AcquireLocks();
         globalLSNCounter++;
@@ -237,15 +249,98 @@ public class TxnManager implements ITxnManager{
 //        }
 //    }
 
-    public void timeTraversal(long ts) {
+    public void timeTraversal(String ts) throws ParseException {
+        long tsEpoch = getEpoch(ts);
         TxnManager.AcquireLocks();
-        List<JSONObject> records = loggingManager.getTimeTraversalRecords(ts);
+        List<JSONObject> records = loggingManager.getTimeTraversalRecords(tsEpoch);
+        if(records.size() != 0) {
+            // Going back in time
+            ArrayList<Integer> lsnList = new ArrayList<Integer>();
+            int i = 0;
+            for (JSONObject rec : records) {
+
+                Log.logType type = Log.getTypeFromString((String) rec.get("type"));
+                if (type == Log.logType.BEGIN) {
+                    break;
+                }
+                i = i + 1;
+            }
+
+            for (int j = records.size() - 1; j >= i; j--) {
+                JSONObject rec = records.get(j);
+                lsnList.add(rec.getInt("LSN"));
+                Log.logType type = Log.getTypeFromString((String) rec.get("type"));
+                if (type != Log.logType.RECORD) {
+                    continue;
+                }
+                if (rec.has("prevPayload")) {
+                    JSONObject payload = rec.getJSONObject("prevPayload");
+                    dataManager.updateData(payload.toString());
+                } else {
+                    JSONObject payload = rec.getJSONObject("payload");
+                    String policyID = DataManager.getPolicyID((payload));
+                    dataManager.deletePolicy(policyID);
+                }
+            }
+            loggingManager.markAsTimeTraversed(lsnList);
+        }
+        else{
+            // go forward in time
+            List<JSONObject> futureRecords = loggingManager.getFutureTimeTraversalRecords(tsEpoch);
+
+            ArrayList<Integer> lsnList = new ArrayList<Integer>();
+            int i = 0;
+            //Collections.reverse(futureRecords);
+            for (JSONObject rec : futureRecords) {
+
+                Log.logType type = Log.getTypeFromString((String) rec.get("type"));
+                if (type == Log.logType.BEGIN) {
+                    break;
+                }
+                i = i + 1;
+            }
+
+            int last = futureRecords.size() - 1;
+            for (int j = futureRecords.size() - 1; j >= i; j--){
+                JSONObject rec = futureRecords.get(j);
+
+                Log.logType type = Log.getTypeFromString((String) rec.get("type"));
+                if (type == Log.logType.COMMIT) {
+                    break;
+                }
+                last = j;
+            }
+
+            for (int j = i  ; j <= last ; j++) {
+                JSONObject rec = futureRecords.get(j);
+                lsnList.add(rec.getInt("LSN"));
+                Log.logType type = Log.getTypeFromString((String) rec.get("type"));
+                if (type != Log.logType.RECORD) {
+                    continue;
+                }
+                if (rec.has("payload")) {
+                    JSONObject payload = rec.getJSONObject("payload");
+                    dataManager.updateData(payload.toString());
+                }
+            }
+            loggingManager.markAsNotTimeTraversed(lsnList);
+        }
+        TxnManager.ReleaseLocks();
+    }
+
+    public void viewHistory(String timestamp) throws ParseException {
+        long epochTs = getEpoch(timestamp);
+        TxnManager.AcquireLocks();
+
+        // A part
+        List<JSONObject> jsonListA = dataManager.getRecords(epochTs);
+
+        dataManager.addNewData(jsonListA);
+        // B part
+        List<JSONObject> jsonListB = loggingManager.getTimeTraversalRecords(epochTs);
         ArrayList<Integer> lsnList = new ArrayList<Integer>();
-//        Boolean bInclude = true;
-//        List<JSONObject> validRecords = new ArrayList<JSONObject>();
-//        List<JSONObject> tempRecords = new ArrayList<JSONObject>();
         int i = 0;
-        for(JSONObject rec : records) {
+        for(JSONObject rec : jsonListB) {
             i = i+1;
             Log.logType type = Log.getTypeFromString((String) rec.get("type"));
             if(type == Log.logType.BEGIN){
@@ -253,8 +348,8 @@ public class TxnManager implements ITxnManager{
             }
         }
 
-        for(int j = records.size() - 1 ; j >=i  ; j--){
-            JSONObject rec = records.get(j);
+        for(int j = jsonListB.size() - 1 ; j >=i  ; j--){
+            JSONObject rec = jsonListB.get(j);
             lsnList.add(rec.getInt("LSN"));
             Log.logType type = Log.getTypeFromString((String) rec.get("type"));
             if(type != Log.logType.RECORD){
@@ -262,17 +357,16 @@ public class TxnManager implements ITxnManager{
             }
             if(rec.has("prevPayload")){
                 JSONObject payload = rec.getJSONObject("prevPayload");
-                dataManager.updateData(payload.toString());
+                dataManager.updateNewData(payload);
             }
             else{
                 JSONObject payload = rec.getJSONObject("payload");
                 String policyID = DataManager.getPolicyID((payload));
-                dataManager.deletePolicy(policyID);
+                dataManager.deletePolicyFromOld(policyID);
             }
         }
-        loggingManager.markAsTimeTraversed(lsnList);
         TxnManager.ReleaseLocks();
-    }
+   }
 
     public static void AcquireLocks(){
         TxnManager.logBufferLock.lock();

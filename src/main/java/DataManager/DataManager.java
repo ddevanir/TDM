@@ -4,6 +4,8 @@ import LoggingManager.Log;
 import org.json.JSONObject;
 import LoggingManager.MongoDB;
 
+import java.util.List;
+
 /**
  * Created by beep on 5/27/17.
  */
@@ -92,5 +94,18 @@ public class DataManager implements IDataManager {
 
     public void deletePolicy(String policyID){
         mongoDB.deletePolicy(policyID);
+    }
+
+    public void deletePolicyFromOld(String policyID){
+        mongoDB.deletePolicyfromOld(policyID);
+    }
+
+    public void addNewData(List<JSONObject> jsonList){ mongoDB.addNewData(jsonList);}
+
+    public void updateNewData(JSONObject json ){ mongoDB.updateNewData(json);}
+
+    public List<JSONObject> getRecords(long ts){
+        mongoDB.dropOldPolicyCollection();
+        return mongoDB.geDataRecords(ts);
     }
 }
