@@ -3,6 +3,7 @@
 2. Also download RoboMongo to see the interface of the Log DB and Policy DB.
 
 3. Tables
+
 ● Log DB
 1. Pending TID - Keeps track of ongoing transactions.
 2. <TID, FirstLSN> - Keeps track of first LSN of every Txn.
@@ -22,6 +23,7 @@ of the following:
 ● PolicyID -> List of LSN
 
 5. Features
+
 1) Transaction - Begin, Write, Commit/Abort, Flush
 2) Recovery - UNDO/REDO
 3) View state of DB at given timestamp
