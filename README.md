@@ -1,4 +1,4 @@
-# TDM
+# Transaction Manager for TIPPERS
 1. Download MongoDB and run the server while executing the project. 
 2. Also download RoboMongo to see the interface of the Log DB and Policy DB.
 
